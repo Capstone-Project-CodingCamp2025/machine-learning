@@ -12,16 +12,21 @@ Original file is located at
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.neighbors import NearestNeighbors
 from scipy.sparse import hstack
+import tensorflow as tf
+from tensorflow.keras import layers, models, regularizers
+import json
+import os
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+import subprocess
 
 """# **2. Load Dataset**"""
 
-df = pd.read_excel('all_data.xlsx')
+df = pd.read_csv('CBF.csv')
 
 """# **3. Data Wrangling**
 
@@ -42,7 +47,7 @@ df = df.dropna(subset=['rating', 'jumlah_ulasan', 'thumbnail'])
 df[['rating', 'jumlah_ulasan']] = df[['rating', 'jumlah_ulasan']].fillna(0)
 
 # Buat kolom gabungan konten
-df['content'] = df['kategori'] + ' ' + df['alamat']
+df['content'] = df['nama_tempat'] + ' ' + df['kategori'] + ' ' + df['alamat']
 
 """# **4. Exploratory Data Analysis (EDA)**
 
@@ -75,38 +80,163 @@ plt.show()
 
 """# **5. Preprocessing**"""
 
-tfidf = TfidfVectorizer()
-tfidf_matrix = tfidf.fit_transform(df['content'])
+# 5.1 TF-IDF + Dimensionality Reduction
+from sklearn.feature_extraction import text
+# Buat list stop-words bahasa Inggris + beberapa kata umum Bahasa Indonesia
+id_stop = list(text.ENGLISH_STOP_WORDS) + ['yang', 'di', 'ke', 'dari']
 
-"""# **6. Normalisasi**"""
+tfidf = TfidfVectorizer(
+    stop_words=id_stop,    # sekarang list, bukan frozenset
+    max_df=0.8,
+    ngram_range=(1,2)
+)
+X_tfidf = tfidf.fit_transform(df['content'])
+svd = TruncatedSVD(n_components=100, random_state=42)
+X_svd = svd.fit_transform(X_tfidf)
 
 scaler = MinMaxScaler()
-numerical_features = scaler.fit_transform(df[['rating', 'jumlah_ulasan']])
+X_num = scaler.fit_transform(df[['rating', 'jumlah_ulasan']])
 
-"""# **7. Penggabungan Fitur**"""
+alpha, beta = 0.5, 2.0
+X_combined = np.hstack([X_svd * alpha, X_num * beta])
+print(f"Combined feature shape: {X_combined.shape}")
 
-item_features = hstack([tfidf_matrix, numerical_features])
+"""# **6. Bangun Model**"""
 
-"""# **9. Latih Model**"""
+input_dim = X_combined.shape[1]
+inputs = layers.Input(shape=(input_dim,))
 
-nbrs = NearestNeighbors(metric='cosine', algorithm='brute')
-nbrs.fit(item_features)
+# Encoder
+x = layers.Dense(64, activation='relu',
+                 kernel_regularizer=regularizers.l2(1e-5))(inputs)
+x = layers.Dense(32, activation='relu',
+                 kernel_regularizer=regularizers.l2(1e-5))(x)
+embedding = layers.Dense(16, activation=None, name='embedding')(x)
 
-np.save('item_features.npy', item_features.toarray())
-with open('cbf_nbrs.pkl', 'wb') as f:
-    pickle.dump(nbrs, f)
+# Decoder
+x = layers.Dense(32, activation='relu')(embedding)
+x = layers.Dense(64, activation='relu')(x)
+# Use linear activation on output
+output_layer = layers.Dense(input_dim, activation='linear')(x)
 
-print("✅ Model CBF berhasil dibuat dan disimpan.")
+autoencoder = models.Model(inputs, output_layer)
+autoencoder.compile(optimizer='adam', loss='mse')
+autoencoder.summary()
 
-import json
+"""# **7. Latih Model**"""
 
-# Konversi item_features ke list (pastikan .toarray() jika sparse matrix)
-item_vectors = item_features.toarray().tolist()
+early_stop = tf.keras.callbacks.EarlyStopping(
+    monitor='val_loss', patience=5, restore_best_weights=True
+)
+history = autoencoder.fit(
+    X_combined, X_combined,
+    epochs=100,
+    batch_size=32,
+    validation_split=0.2,
+    callbacks=[early_stop],
+    verbose=2
+)
 
-# Simpan sebagai JSON
-with open("item_features.json", "w") as f:
-    json.dump(item_vectors, f)
+"""# **8. Evaluasi**"""
 
-# Simpan juga nama tempatnya
-with open("item_names.json", "w") as f:
+# Plot Loss Curve
+plt.figure(figsize=(8,5))
+plt.plot(history.history['loss'], label='train loss')
+plt.plot(history.history['val_loss'], label='val loss')
+plt.title('Training vs Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('MSE Loss')
+plt.legend()
+plt.show()
+
+def plot_histogram(sim_values, title):
+    plt.figure(figsize=(6,4))
+    plt.hist(sim_values, bins=50)
+    plt.title(title)
+    plt.xlabel('Cosine Similarity')
+    plt.ylabel('Count')
+    plt.show()
+
+encoder = models.Model(inputs=autoencoder.input,
+                        outputs=autoencoder.get_layer('embedding').output)
+emb = encoder.predict(X_combined)
+# L2 normalization
+emb_norm = emb / np.linalg.norm(emb, axis=1, keepdims=True)
+# Example similarity for item idx 0
+dist0 = emb_norm @ emb_norm[0]
+plot_histogram(dist0, 'Cosine Similarity Distribution to Item 0')
+print("Min, Max, Mean:", dist0.min(), dist0.max(), dist0.mean())
+
+"""# **9. Inference**
+
+"""
+
+cosine_sim = emb_norm.dot(emb_norm.T)
+
+def recommend(idx, top_k=5):
+    sim_scores = cosine_sim[idx]
+    top_idx = np.argsort(-sim_scores)
+    results, seen = [], set()
+    for i in top_idx:
+        name = df['nama_tempat'].iloc[i]
+        if name in seen: continue
+        seen.add(name)
+        results.append((name, df['rating'].iloc[i], sim_scores[i]))
+        if len(results) >= top_k: break
+    return results
+
+# Print Top-5 for idx 0
+recos = recommend(0, top_k=5)
+print("Top-5 Recommendations:")
+for i,(n,r,s) in enumerate(recos,1):
+    print(f"{i}. {n} – Rating {r:.2f} – CosineSim {s:.4f}")
+
+"""# **10. Simpan Model**
+
+## Saved Model
+"""
+
+!pip install tensorflowjs
+
+# Simpan model encoder
+if not os.path.exists("model"):
+    os.makedirs("model")
+
+# 10.1 Save TensorFlow SavedModel for TFJS conversion
+encoder.export('model/cbf_encoder_savedmodel', save_format='tf')
+
+# 10.2 Save Keras H5/TF models
+encoder.save('model/cbf_encoder.keras', save_format='tf')
+autoencoder.save('model/cbf_autoencoder.keras', save_format='tf')
+
+# 10.3 Convert to TensorFlowJS format (ensure tensorflowjs is installed)
+try:
+    subprocess.run([
+        'tensorflowjs_converter',
+        '--input_format=tf_saved_model',
+        '--output_format=tfjs_graph_model',
+        'model/cbf_encoder_savedmodel',
+        'model/tfjs_model'
+    ], check=True)
+except Exception as e:
+    print("TFJS conversion failed:", e)
+
+# 10.4 Save item features and ratings to numpy & JSON
+np.save('model/item_features.npy', X_combined)
+np.save('model/place_ratings.npy', df['rating'].values)
+with open('model/item_features.json', 'w') as f:
+    json.dump(X_combined.tolist(), f)
+with open('model/place_ratings.json', 'w') as f:
+    json.dump(df['rating'].tolist(), f)
+with open('model/place_names.json', 'w') as f:
     json.dump(df['nama_tempat'].tolist(), f)
+
+!pip freeze > model/requirements.txt
+
+import shutil
+
+# Zip folder model menjadi cbf_encoder.zip
+shutil.make_archive('model_cbf', 'zip', 'model')
+
+from google.colab import files
+files.download('model_cbf.zip')
