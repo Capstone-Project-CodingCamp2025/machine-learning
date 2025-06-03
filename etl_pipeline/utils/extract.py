@@ -76,20 +76,3 @@ def scrape_web(query, max_data=120, ll="@1.8335539,97.4222773,8z", start=0):
     print(df)
     print(len(df))
     print('Data berhasil dijadikan csv')
-
-
-def main():
-    '''
-    Menjalankan fungsi scrape_web dengan kueri yang sesuai
-    '''
-    
-    wisata_alam = scrape_web('Wisata Alam Sumatra Utara')
-    wisata_kuliner = scrape_web('Wisata Kuliner Sumatra Utara', max_data=50)
-    wisata_budaya_sejarah = scrape_web('Wisata Budaya dan Sejarah Sumatra Utara', max_data=40)
-    wisata_edukasi = scrape_web('Wisata Edukasi Sumatra Utara', max_data=30)
-    wisata_belanja = scrape_web('Wisata Belanja Sumatra Utara', max_data=30)
-
-
-if __name__ == '__main__':
-    main()
-    
