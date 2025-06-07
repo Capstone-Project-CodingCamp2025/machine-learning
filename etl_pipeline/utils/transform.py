@@ -11,7 +11,6 @@ def transform_data(dataframe, path='gambar_data/', nama_file='transformed.csv'):
     
     output: file .csv yang sudah ada kolom gambar beserta tidak ada missing values
     '''
-    
     # Membuat Kolom 'gambar' dalam dataframe
     dataframe['gambar'] = None
     
@@ -30,10 +29,15 @@ def transform_data(dataframe, path='gambar_data/', nama_file='transformed.csv'):
     # Menghapus missing values dan kolom yang tidak dibutuhkan
     dataframe.dropna(subset='gambar', inplace=True)            
     dataframe.drop(['Unnamed: 0', 'kategori'], axis=1, inplace=True)
-    
+
     description = pd.read_csv('data/description.csv')
     
+    # Menggabungkan dataframe dengan description
     add_description = description.merge(dataframe, on='nama_tempat', how='left')
+    
+    # Menghapus missing values dan duplicated values
+    add_description.dropna(inplace=True)
+    add_description.drop_duplicates(subset=['nama_tempat'], inplace=True)
     
     # Export ke dalam file .csv
     add_description.to_csv(nama_file, index=False)    
@@ -42,7 +46,7 @@ def transform_data(dataframe, path='gambar_data/', nama_file='transformed.csv'):
     
     
 def main():
-    df = pd.read_csv('all_data.csv')
+    df = pd.read_csv('data/all_data.csv')
     
     transform_data(df)
     
