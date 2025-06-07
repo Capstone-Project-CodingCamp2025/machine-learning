@@ -29,10 +29,14 @@ def transform_data(dataframe, path='gambar_data/', nama_file='transformed.csv'):
     
     # Menghapus missing values dan kolom yang tidak dibutuhkan
     dataframe.dropna(subset='gambar', inplace=True)            
-    dataframe.drop(['Unnamed: 0'], axis=1, inplace=True)
+    dataframe.drop(['Unnamed: 0', 'kategori'], axis=1, inplace=True)
+    
+    description = pd.read_csv('data/description.csv')
+    
+    add_description = description.merge(dataframe, on='nama_tempat', how='left')
     
     # Export ke dalam file .csv
-    dataframe.to_csv(nama_file, index=False)    
+    add_description.to_csv(nama_file, index=False)    
 
     print('Data berhasil di-transform')
     

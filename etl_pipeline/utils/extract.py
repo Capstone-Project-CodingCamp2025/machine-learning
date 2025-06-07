@@ -69,8 +69,6 @@ def scrape_web(query, max_data=120, ll="@1.8335539,97.4222773,8z", start=0):
 
     df = pd.DataFrame(data)
 
-    df['kategori'] = kategori
-
     df.to_csv(f'data_{kategori}.csv')
 
     print(df)
