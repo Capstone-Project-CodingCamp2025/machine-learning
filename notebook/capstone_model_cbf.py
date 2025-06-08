@@ -11,9 +11,6 @@ Original file is located at
 Menginstall semua depencies yang dibutuhkan
 """
 
-!pip install Sastrawi
-!pip install tensorflowjs
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,24 +18,20 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
 
-# NLP Libraries
+# Text processing and ML libraries
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import MinMaxScaler
-
-# Text Processing
-import re
-import string
-from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
-from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
-
-# Model Saving
-import joblib
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.decomposition import TruncatedSVD
 import json
-import tensorflow as tf
+import re
+import ast
+from collections import Counter
 import os
+import shutil
 
-plt.style.use('default')
+# Set style for plots
+plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
 
 """# **2. Load Dataset**"""
@@ -57,348 +50,385 @@ print("Dataset berhasil dimuat!")
 print(f"Shape: {df.shape}")
 print("\nKolom:", df.columns.tolist())
 
-"""# **3. Data Wrangling**
+"""# **3. Data Wrangling**"""
 
-## 3.1. Statistics Descriptive
-"""
+# Check for missing values
+print("\n❓ Missing Values:")
+print(df.isnull().sum())
 
-# Ringkasan data
-df.info()
+# Clean and prepare the data
+df_clean = df.copy()
 
-df.describe()
+# Handle missing values
+df_clean['rating'] = df_clean['rating'].fillna(df_clean['rating'].median())
+df_clean['jumlah_ulasan'] = df_clean['jumlah_ulasan'].fillna(0)
+df_clean['deskripsi'] = df_clean['deskripsi'].fillna('')
+df_clean['kategori'] = df_clean['kategori'].fillna('Wisata Alam')
 
-"""## 3.2. Handling Missing Values"""
+# Clean text data
+def clean_text(text):
+    if pd.isna(text):
+        return ''
+    text = str(text).lower()
+    text = re.sub(r'[^\w\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
-df.isnull().sum()
+df_clean['deskripsi_clean'] = df_clean['deskripsi'].apply(clean_text)
+df_clean['kategori_clean'] = df_clean['kategori'].apply(clean_text)
+df_clean['nama_clean'] = df_clean['nama_tempat'].apply(clean_text)
 
-"""## 3.3. Handling Duplicated Data"""
+# Extract location information
+df_clean['provinsi'] = df_clean['alamat'].str.extract(r'(Sumatera Utara|North Sumatra)')
+df_clean['provinsi'] = df_clean['provinsi'].fillna('Sumatera Utara')
 
-df.duplicated().sum()
+print(f"\n✅ Cleaned dataset shape: {df_clean.shape}")
+print(f"Unique categories: {df_clean['kategori'].nunique()}")
 
-"""# **4. EDA**
+"""# **4. EDA**"""
 
-## 4.1. Feature Distribution.
-"""
+# Create visualizations
+fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 
-def perform_eda(df):
-    """Melakukan analisis data eksploratif"""
+# 1. Distribution of ratings
+axes[0,0].hist(df_clean['rating'], bins=20, alpha=0.7, color='skyblue', edgecolor='black')
+axes[0,0].set_title('Distribution of Ratings', fontsize=14, fontweight='bold')
+axes[0,0].set_xlabel('Rating')
+axes[0,0].set_ylabel('Frequency')
 
-    # Visualizations
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+# 2. Categories distribution
+category_counts = df_clean['kategori'].value_counts().head(10)
+axes[0,1].bar(range(len(category_counts)), category_counts.values, color='lightcoral')
+axes[0,1].set_title('Top 10 Tourism Categories', fontsize=14, fontweight='bold')
+axes[0,1].set_xlabel('Categories')
+axes[0,1].set_ylabel('Count')
+axes[0,1].set_xticks(range(len(category_counts)))
+axes[0,1].set_xticklabels(category_counts.index, rotation=45, ha='right')
 
-    # Rating distribution
-    axes[0,0].hist(df['rating'], bins=20, alpha=0.7, color='skyblue')
-    axes[0,0].set_title('Distribusi Rating')
-    axes[0,0].set_xlabel('Rating')
-    axes[0,0].set_ylabel('Frequency')
+# 3. Rating vs Number of Reviews
+axes[1,0].scatter(df_clean['jumlah_ulasan'], df_clean['rating'], alpha=0.6, color='green')
+axes[1,0].set_title('Rating vs Number of Reviews', fontsize=14, fontweight='bold')
+axes[1,0].set_xlabel('Number of Reviews')
+axes[1,0].set_ylabel('Rating')
 
-    # Reviews count distribution
-    axes[0,1].hist(df['jumlah_ulasan'], bins=20, alpha=0.7, color='lightgreen')
-    axes[0,1].set_title('Distribusi Jumlah Ulasan')
-    axes[0,1].set_xlabel('Jumlah Ulasan')
-    axes[0,1].set_ylabel('Frequency')
+# 4. Rating distribution by category
+top_categories = df_clean['kategori'].value_counts().head(5).index
+df_top_cat = df_clean[df_clean['kategori'].isin(top_categories)]
+axes[1,1].boxplot([df_top_cat[df_top_cat['kategori']==cat]['rating'].values
+                   for cat in top_categories])
+axes[1,1].set_title('Rating Distribution by Top Categories', fontsize=14, fontweight='bold')
+axes[1,1].set_xlabel('Categories')
+axes[1,1].set_ylabel('Rating')
+axes[1,1].set_xticklabels(top_categories, rotation=45, ha='right')
 
-    # Rating vs Reviews scatter
-    axes[1,0].scatter(df['rating'], df['jumlah_ulasan'], alpha=0.6)
-    axes[1,0].set_title('Rating vs Jumlah Ulasan')
-    axes[1,0].set_xlabel('Rating')
-    axes[1,0].set_ylabel('Jumlah Ulasan')
+plt.tight_layout()
+plt.show()
 
-    # Top locations by rating
-    top_ratings = df.nlargest(5, 'rating')
-    axes[1,1].barh(top_ratings['nama_tempat'], top_ratings['rating'])
-    axes[1,1].set_title('Top 5 Tempat dengan Rating Tertinggi')
-    axes[1,1].set_xlabel('Rating')
+# Statistical summary
+print("\n📊 Statistical Summary:")
+print(df_clean[['rating', 'jumlah_ulasan']].describe())
 
-    plt.tight_layout()
-    plt.show()
-
-    return df
-
-# Perform EDA
-df = perform_eda(df)
+print(f"\n🏷️ Category Distribution:")
+print(df_clean['kategori'].value_counts())
 
 """# **5. Preprocessing**"""
 
-class IndonesianTextPreprocessor:
-    def __init__(self):
-        # Initialize Sastrawi components
-        self.stemmer = StemmerFactory().create_stemmer()
-        self.stopword_remover = StopWordRemoverFactory().create_stop_word_remover()
+# Create combined text features for content-based filtering
+df_clean['combined_features'] = (
+    df_clean['nama_clean'] + ' ' +
+    df_clean['deskripsi_clean'] + ' ' +
+    df_clean['kategori_clean']
+)
 
-        # Additional Indonesian stopwords
-        self.additional_stopwords = {
-            'wisata', 'alam', 'tempat', 'lokasi', 'indonesia', 'sumatera', 'utara',
-            'kabupaten', 'kecamatan', 'kec', 'jalan', 'jl', 'desa', 'kelurahan'
-        }
+# Create popularity score
+def calculate_popularity_score(rating, num_reviews):
+    # Weighted rating considering number of reviews
+    min_reviews = df_clean['jumlah_ulasan'].quantile(0.25)
+    return (rating * np.log1p(num_reviews)) / (1 + np.exp(-num_reviews/min_reviews))
 
-    def clean_text(self, text):
-        """Membersihkan teks dari karakter khusus"""
-        if pd.isna(text):
-            return ""
+df_clean['popularity_score'] = df_clean.apply(
+    lambda x: calculate_popularity_score(x['rating'], x['jumlah_ulasan']), axis=1
+)
 
-        # Convert to lowercase
-        text = str(text).lower()
+# Normalize popularity score
+scaler = MinMaxScaler()
+df_clean['popularity_normalized'] = scaler.fit_transform(df_clean[['popularity_score']])
 
-        # Remove URLs
-        text = re.sub(r'http\S+|www.\S+', '', text)
+# Create category encoding for hybrid approach
+category_encoder = pd.get_dummies(df_clean['kategori'], prefix='cat')
+df_features = pd.concat([df_clean, category_encoder], axis=1)
 
-        # Remove email addresses
-        text = re.sub(r'\S+@\S+', '', text)
+print(f"✅ Feature engineering completed!")
+print(f"Combined features sample: {df_clean['combined_features'].iloc[0][:100]}...")
 
-        # Remove punctuation and numbers
-        text = re.sub(r'[^\w\s]', ' ', text)
-        text = re.sub(r'\d+', '', text)
+"""# **6. Feature Extraction and Cosine Similarity**"""
 
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
+# Initialize TF-IDF Vectorizer
+tfidf = TfidfVectorizer(
+    max_features=5000,
+    stop_words='english',
+    ngram_range=(1, 2),
+    min_df=1,
+    max_df=0.8
+)
 
-        return text
+# Fit and transform the combined features
+tfidf_matrix = tfidf.fit_transform(df_clean['combined_features'])
+print(f"TF-IDF Matrix shape: {tfidf_matrix.shape}")
 
-    def remove_stopwords(self, text):
-        """Menghapus stopwords"""
-        # Use Sastrawi stopword remover
-        text = self.stopword_remover.remove(text)
+# Calculate cosine similarity matrix
+print("🔢 Calculating Cosine Similarity...")
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+print(f"Cosine Similarity Matrix shape: {cosine_sim.shape}")
 
-        # Remove additional stopwords
-        words = text.split()
-        words = [word for word in words if word not in self.additional_stopwords]
+# Create indices mapping
+indices = pd.Series(df_clean.index, index=df_clean['nama_tempat']).drop_duplicates()
 
-        return ' '.join(words)
+"""# **7. Recommendation Function**"""
 
-    def stem_text(self, text):
-        """Melakukan stemming"""
-        return self.stemmer.stem(text)
+def get_recommendations(place_name, cosine_sim=cosine_sim, df=df_clean, top_n=5):
+    """
+    Get tourism recommendations based on place name
+    """
+    try:
+        # Get the index of the place
+        idx = indices[place_name]
 
-    def preprocess(self, text):
-        """Pipeline preprocessing lengkap"""
-        text = self.clean_text(text)
-        text = self.remove_stopwords(text)
-        text = self.stem_text(text)
-        return text
+        # Get similarity scores for all places
+        sim_scores = list(enumerate(cosine_sim[idx]))
 
-# Initialize preprocessor
-preprocessor = IndonesianTextPreprocessor()
+        # Sort places based on similarity scores
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
 
-def preprocess_data(df):
-    """Memproses data untuk model"""
-    print("="*50)
-    print("DATA PREPROCESSING")
-    print("="*50)
+        # Get top N similar places (excluding the input place itself)
+        sim_scores = sim_scores[1:top_n+1]
 
-    # Create processed dataframe
-    processed_df = df.copy()
+        # Get place indices
+        place_indices = [i[0] for i in sim_scores]
 
-    # Handle missing values
-    processed_df['rating'] = processed_df['rating'].fillna(processed_df['rating'].mean())
-    processed_df['jumlah_ulasan'] = processed_df['jumlah_ulasan'].fillna(0)
-    processed_df['content'] = processed_df['content'].fillna('')
-    processed_df['alamat'] = processed_df['alamat'].fillna('')
+        # Return recommended places with details
+        recommendations = df.iloc[place_indices][['nama_tempat', 'kategori', 'rating',
+                                                 'jumlah_ulasan', 'deskripsi', 'alamat']].copy()
+        recommendations['similarity_score'] = [i[1] for i in sim_scores]
 
-    # Combine content and address for better feature extraction
-    processed_df['combined_text'] = processed_df['content'] + ' ' + processed_df['alamat']
+        return recommendations
 
-    # Preprocess text
-    print("Memproses teks...")
-    processed_df['processed_text'] = processed_df['combined_text'].apply(
-        lambda x: preprocessor.preprocess(x)
-    )
+    except KeyError:
+        print(f"❌ Place '{place_name}' not found in dataset!")
+        print("Available places:")
+        print(df['nama_tempat'].tolist()[:10])
+        return None
 
-    # Create quality score (combination of rating and review count)
-    scaler = MinMaxScaler()
-    processed_df['normalized_reviews'] = scaler.fit_transform(
-        processed_df[['jumlah_ulasan']]
-    ).flatten()
-    processed_df['quality_score'] = (
-        processed_df['rating'] * 0.7 +
-        processed_df['normalized_reviews'] * 0.3
-    )
+def get_popular_recommendations(category=None, top_n=5):
+    """
+    Get popular tourism recommendations by category
+    """
+    if category:
+        filtered_df = df_clean[df_clean['kategori'].str.contains(category, case=False, na=False)]
+    else:
+        filtered_df = df_clean
 
-    print("Preprocessing selesai!")
-    print(f"Sample processed text: {processed_df['processed_text'].iloc[0][:100]}...")
+    # Sort by popularity score and rating
+    popular_places = filtered_df.nlargest(top_n, ['popularity_normalized', 'rating'])
 
-    return processed_df
+    return popular_places[['nama_tempat', 'kategori', 'rating', 'jumlah_ulasan',
+                          'deskripsi', 'alamat', 'popularity_normalized']]
 
-# Preprocess data
-processed_df = preprocess_data(df)
+def hybrid_recommendations(place_name, category_weight=0.3, popularity_weight=0.3,
+                          content_weight=0.4, top_n=5):
+    """
+    Hybrid recommendation combining content-based, category, and popularity
+    """
+    try:
+        idx = indices[place_name]
+        target_category = df_clean.iloc[idx]['kategori']
 
-"""# **6. Feature Extraction**"""
+        # Content-based similarity
+        content_scores = cosine_sim[idx]
 
-def extract_features(processed_df):
-    """Ekstraksi fitur menggunakan TF-IDF"""
-    print("="*50)
-    print("FEATURE EXTRACTION")
-    print("="*50)
+        # Category similarity
+        category_sim = np.zeros(len(df_clean))
+        category_sim[df_clean['kategori'] == target_category] = 1.0
 
-    # TF-IDF Vectorization
-    tfidf_vectorizer = TfidfVectorizer(
-        max_features=1000,  # Limit features for efficiency
-        ngram_range=(1, 2),  # Unigrams and bigrams
-        min_df=1,  # Minimum document frequency
-        max_df=0.8,  # Maximum document frequency
-        strip_accents='unicode',
-        lowercase=True
-    )
+        # Popularity scores
+        popularity_scores = df_clean['popularity_normalized'].values
 
-    # Fit and transform
-    tfidf_matrix = tfidf_vectorizer.fit_transform(processed_df['processed_text'])
+        # Combine scores
+        hybrid_scores = (content_weight * content_scores +
+                        category_weight * category_sim +
+                        popularity_weight * popularity_scores)
 
-    print(f"TF-IDF Matrix Shape: {tfidf_matrix.shape}")
-    print(f"Feature Names (first 10): {tfidf_vectorizer.get_feature_names_out()[:10]}")
+        # Get top recommendations
+        sim_scores = list(enumerate(hybrid_scores))
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+        sim_scores = sim_scores[1:top_n+1]  # Exclude the input place
 
-    return tfidf_matrix, tfidf_vectorizer
+        place_indices = [i[0] for i in sim_scores]
+        recommendations = df_clean.iloc[place_indices][['nama_tempat', 'kategori', 'rating',
+                                                      'jumlah_ulasan', 'deskripsi', 'alamat']].copy()
+        recommendations['hybrid_score'] = [i[1] for i in sim_scores]
 
-# Extract features
-tfidf_matrix, tfidf_vectorizer = extract_features(processed_df)
+        return recommendations
 
-"""# **7. COMPUTING COSINE SIMILARITY**"""
-
-def compute_similarity(tfidf_matrix):
-    """Menghitung cosine similarity"""
-    print("="*50)
-    print("COMPUTING COSINE SIMILARITY")
-    print("="*50)
-
-    # Compute cosine similarity
-    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
-
-    print(f"Similarity Matrix Shape: {cosine_sim.shape}")
-    print(f"Sample similarities for first item: {cosine_sim[0][:5]}")
-
-    return cosine_sim
-
-# Compute similarity
-cosine_sim = compute_similarity(tfidf_matrix)
+    except KeyError:
+        print(f"❌ Place '{place_name}' not found!")
+        return None
 
 """# **8. Evaluation**"""
 
-class TourismRecommender:
-    def __init__(self, df, cosine_sim, tfidf_vectorizer):
-        self.df = df
-        self.cosine_sim = cosine_sim
-        self.tfidf_vectorizer = tfidf_vectorizer
-        self.indices = pd.Series(df.index, index=df['nama_tempat']).drop_duplicates()
+def evaluate_diversity(recommendations):
+    """Calculate diversity of recommendations based on categories"""
+    if recommendations is None or len(recommendations) == 0:
+        return 0
+    categories = recommendations['kategori'].tolist()
+    unique_categories = len(set(categories))
+    return unique_categories / len(categories)
 
-    def get_recommendations(self, place_name, top_n=5):
-        """Mendapatkan rekomendasi berdasarkan nama tempat"""
-        try:
-            # Get index of the place
-            idx = self.indices[place_name]
+def evaluate_novelty(recommendations, popular_threshold=0.7):
+    """Calculate novelty by measuring how many non-popular items are recommended"""
+    if recommendations is None or len(recommendations) == 0:
+        return 0
+    if 'popularity_normalized' in recommendations.columns:
+        novel_items = len(recommendations[recommendations['popularity_normalized'] < popular_threshold])
+        return novel_items / len(recommendations)
+    return 0
 
-            # Get similarity scores
-            sim_scores = list(enumerate(self.cosine_sim[idx]))
+# Test recommendations
+print("\n🧪 Testing Recommendations...")
+test_place = df_clean['nama_tempat'].iloc[0]
+print(f"Testing with: {test_place}")
 
-            # Sort by similarity (excluding the place itself)
-            sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:top_n+1]
+# Content-based recommendations
+content_recs = get_recommendations(test_place)
+print(f"\n📍 Content-based Recommendations for '{test_place}':")
+if content_recs is not None:
+    print(content_recs[['nama_tempat', 'kategori', 'rating', 'similarity_score']])
 
-            # Get indices of recommended places
-            place_indices = [i[0] for i in sim_scores]
+# Popular recommendations
+popular_recs = get_popular_recommendations(category='Danau')
+print(f"\n🔥 Popular 'Danau' Recommendations:")
+print(popular_recs[['nama_tempat', 'kategori', 'rating', 'jumlah_ulasan']])
 
-            # Create recommendation dataframe
-            recommendations = self.df.iloc[place_indices].copy()
-            recommendations['similarity_score'] = [score[1] for score in sim_scores]
+# Hybrid recommendations
+hybrid_recs = hybrid_recommendations(test_place)
+print(f"\n🎯 Hybrid Recommendations for '{test_place}':")
+if hybrid_recs is not None:
+    print(hybrid_recs[['nama_tempat', 'kategori', 'rating', 'hybrid_score']])
 
-            return recommendations[['nama_tempat', 'rating', 'jumlah_ulasan',
-                                 'alamat', 'similarity_score']]
+# Calculate evaluation metrics
+if content_recs is not None:
+    diversity_score = evaluate_diversity(content_recs)
+    print(f"\n📊 Evaluation Metrics:")
+    print(f"Diversity Score: {diversity_score:.3f}")
+    print(f"Average Rating of Recommendations: {content_recs['rating'].mean():.2f}")
+    print(f"Average Similarity Score: {content_recs['similarity_score'].mean():.3f}")
 
-        except KeyError:
-            return f"Tempat '{place_name}' tidak ditemukan dalam dataset."
+"""# **9. Save Model**"""
 
-    def get_recommendations_by_text(self, query_text, top_n=5):
-        """Mendapatkan rekomendasi berdasarkan query text"""
-        # Preprocess query
-        processed_query = preprocessor.preprocess(query_text)
-
-        # Transform query to TF-IDF
-        query_tfidf = self.tfidf_vectorizer.transform([processed_query])
-
-        # Compute similarity with all places
-        query_sim = cosine_similarity(query_tfidf, tfidf_matrix).flatten()
-
-        # Get top similar places
-        similar_indices = query_sim.argsort()[-top_n:][::-1]
-
-        # Create recommendation dataframe
-        recommendations = self.df.iloc[similar_indices].copy()
-        recommendations['similarity_score'] = query_sim[similar_indices]
-
-        return recommendations[['nama_tempat', 'rating', 'jumlah_ulasan',
-                             'alamat', 'similarity_score']]
-
-# Initialize recommender
-recommender = TourismRecommender(processed_df, cosine_sim, tfidf_vectorizer)
-
-"""# **9. Inference**
-
-"""
-
-def test_recommendations():
-    """Test sistem rekomendasi"""
-    print("="*50)
-    print("TESTING RECOMMENDATION SYSTEM")
-    print("="*50)
-
-    # Test 1: Recommendation by place name
-    print("Test 1: Rekomendasi berdasarkan nama tempat")
-    print("-" * 40)
-    place_name = processed_df['nama_tempat'].iloc[0]
-    print(f"Mencari rekomendasi untuk: {place_name}")
-
-    recommendations = recommender.get_recommendations(place_name, top_n=3)
-    print(recommendations)
-    print("\n")
-
-    # Test 2: Recommendation by query text
-    print("Test 2: Rekomendasi berdasarkan query text")
-    print("-" * 40)
-    query = "bukit indah pemandangan alam"
-    print(f"Query: '{query}'")
-
-    text_recommendations = recommender.get_recommendations_by_text(query, top_n=3)
-    print(text_recommendations)
-    print("\n")
-
-# Test the system
-test_recommendations()
-
-"""# **10. Simpan Model**
-
-## Saved Model
-"""
-
-import os, json, numpy as np
-
-# pastikan folder ada
-os.makedirs("model", exist_ok=True)
-
-# siapkan data TF-IDF
-tv = tfidf_vectorizer
-
-# cast vocabulary_ ke int biasa
-vocab_py = {term: int(idx) for term, idx in tv.vocabulary_.items()}
-
-obj = {
-    "vocab": vocab_py,
-    "idf":   [float(x) for x in tv.idf_],  # pastikan jadi Python float
-    "terms": tv.get_feature_names_out().tolist()
+# Prepare data for JSON export
+model_data = {
+    'metadata': {
+        'model_type': 'Content-Based Tourism Recommendation System',
+        'dataset_size': len(df_clean),
+        'features_used': ['nama_tempat', 'deskripsi', 'kategori'],
+        'similarity_method': 'Cosine Similarity with TF-IDF',
+        'categories': df_clean['kategori'].unique().tolist(),
+        'date_created': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    'places_data': [],
+    'similarity_matrix_shape': cosine_sim.shape,
+    'evaluation_metrics': {
+        'diversity_score': diversity_score if 'diversity_score' in locals() else 0,
+        'average_rating': float(df_clean['rating'].mean()),
+        'total_categories': int(df_clean['kategori'].nunique())
+    }
 }
 
-# dump ke JSON
-with open('model/tfidf.json','w') as f:
-    json.dump(obj, f, ensure_ascii=False, indent=2)
+os.makedirs("model", exist_ok=True)
 
-# simpan similarity matrix sebagai .npy
-np.save('model/cosine_sim.npy', cosine_sim)
+# Add places data
+for idx, row in df_clean.iterrows():
+    place_data = {
+        'id': int(idx),
+        'nama_tempat': row['nama_tempat'],
+        'kategori': row['kategori'],
+        'rating': float(row['rating']) if pd.notna(row['rating']) else 0.0,
+        'jumlah_ulasan': int(row['jumlah_ulasan']) if pd.notna(row['jumlah_ulasan']) else 0,
+        'deskripsi': row['deskripsi'],
+        'alamat': row['alamat'],
+        'popularity_score': float(row['popularity_normalized']),
+        'combined_features': row['combined_features']
+    }
+    model_data['places_data'].append(place_data)
 
-# jika butuh JSON juga, convert inner ke float
-cosine_list = [[float(x) for x in row] for row in cosine_sim]
-with open('model/cosine_sim.json','w') as f:
-    json.dump(cosine_list, f, ensure_ascii=False, indent=2)
+# Save to JSON
+with open('model/tourism_recommendation_model.json', 'w', encoding='utf-8') as f:
+    json.dump(model_data, f, ensure_ascii=False, indent=2)
 
-import shutil
+# Save similarity matrix (as it's too large for JSON)
+np.save('model/cosine_similarity_matrix.npy', cosine_sim)
+
+# Save TF-IDF vectorizer parameters
+tfidf_params = {
+    'max_features': 5000,
+    'ngram_range': [1, 2],
+    'min_df': 1,
+    'max_df': 0.8,
+    'vocabulary_size': len(tfidf.get_feature_names_out())
+}
+
+with open('model/tfidf_parameters.json', 'w') as f:
+    json.dump(tfidf_params, f, indent=2)
+
+!pip freeze > model/requirements.txt
+
+print("✅ Model and results saved successfully!")
+print("📁 Folders Model created")
+print("📁 Files created:")
+print("  - tourism_recommendation_model.json")
+print("  - cosine_similarity_matrix.npy")
+print("  - tfidf_parameters.json")
+print("  - requirements.txt")
 
 # Zip folder model menjadi cbf_encoder.zip
 shutil.make_archive('model_cbf', 'zip', 'model')
 
 from google.colab import files
 files.download('model_cbf.zip')
+
+print("📁 Zip All File to Model_CBF")
+print("📁 Download the ZIP")
+
+"""# **10. Inference**
+
+"""
+
+print("\n🎯 Inference Examples...")
+
+def interactive_recommendation():
+    """Interactive recommendation function"""
+    print("\n🔍 Available Tourism Places:")
+    for i, place in enumerate(df_clean['nama_tempat'].head(10), 1):
+        print(f"{i}. {place}")
+
+    print(f"\nTotal places available: {len(df_clean)}")
+
+    # Example recommendations
+    example_places = ['Danau Toba Parapat', 'Bukit Indah Simarjarunjung', 'Air Terjun Sikulikap']
+
+    for place in example_places:
+        if place in df_clean['nama_tempat'].values:
+            print(f"\n🏞️ Recommendations for '{place}':")
+            recs = get_recommendations(place, top_n=3)
+            if recs is not None:
+                for idx, rec in recs.iterrows():
+                    print(f"  • {rec['nama_tempat']} ({rec['kategori']}) - Rating: {rec['rating']:.1f}")
+
+interactive_recommendation()
+
+print(f"\n🎉 Tourism Recommendation System Complete!")
+print(f"📊 Dataset processed: {len(df_clean)} tourism places")
+print(f"🏷️ Categories available: {df_clean['kategori'].nunique()}")
+print(f"⭐ Average rating: {df_clean['rating'].mean():.2f}")
+print(f"🔤 TF-IDF features: {tfidf_matrix.shape[1]}")
+print("="*60)
