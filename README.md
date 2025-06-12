@@ -1,11 +1,11 @@
-# SIRESITA - Sistem Rekomendasi Wisata Sumatera Utara
+# SIRESITA - Sistem Rekomendasi Wisata Sumatera Utara bagian Machine Learning
 
 **Proyek Capstone - Coding Camp 2025**  
 **ID Tim:** CC25-CF119
 
-## 📌 Ringkasan Proyek
+## 📌 Ringkasan Proyek bagian Machine Learning
 
-SIRESITA adalah sistem rekomendasi wisata berbasis machine learning yang dirancang untuk membantu pengguna menemukan destinasi tersembunyi di Sumatera Utara, Indonesia. Proyek ini menggabungkan **Content-Based Filtering (CBF)** dan **Collaborative Filtering (CF)** untuk memberikan rekomendasi wisata yang personal dan relevan. Sistem ini dibangun secara modular yang mencakup ETL, model ML, dan integrasi layanan web.
+**SIRESITA** bagian machine learning adalah proyek Capstone yang dikembangkan untuk membangun sistem rekomendasi tempat wisata di Sumatera Utara menggunakan dua pendekatan utama Machine Learning: **Content-Based Filtering (CBF)** dan **Collaborative Filtering (CF)**. Sistem ini tidak menggunakan model dari API eksternal atau pretrained model, melainkan dibangun sepenuhnya dari awal menggunakan TensorFlow dan scikit-learn.
 
 ---
 
@@ -139,11 +139,32 @@ predict_rating_py("user123", "Danau Toba Parapat")
 
 ---
 
-## 📦 Instalasi
+## ⚙️ Instalasi & Setup
 
+### Clone & Virtual Env
+```bash
+git clone <repo-url>
+cd <project-dir>
+python -m venv venv
+source venv/bin/activate  # (Linux/Mac)
+venv\Scripts\activate   # (Windows)
+```
+
+### Instalasi Dependensi
 ```bash
 pip install -r requirements.txt
+pip install -r model/CBF/requirements.txt
+pip install -r model/CF/requirements.txt
 ```
+
+---
+
+## 📌 Catatan Kepatuhan Capstone
+
+✅ Tidak menggunakan model dari TensorFlow Hub, HuggingFace, ChatGPT API, atau AutoML  
+✅ Model dibangun dari awal  
+✅ Inference diimplementasikan dengan kode Python sederhana  
+✅ Model CF diekspor ke TensorFlow.js untuk integrasi front-end  
 
 ---
 
