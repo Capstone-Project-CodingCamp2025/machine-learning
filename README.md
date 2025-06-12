@@ -42,8 +42,8 @@
 - Dilatih menggunakan data rating.
 - Disimpan dalam format SavedModel TensorFlow dan dikonversi ke TF.js.
 - Output:
-  - `cf/` # Model dengan format SavedModel
-  - `tfjs_model/` # Model dengan format tfjs
+  - `cf/` - Model dengan format SavedModel
+  - `tfjs_model/` - Model dengan format tfjs
   - `user_encoder.json`
   - `item_encoder.json`
 
