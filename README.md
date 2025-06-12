@@ -9,6 +9,23 @@
 
 ---
 
+## 💡 Fitur Utama
+
+- Rekomendasi personalisasi untuk destinasi wisata.
+- Sistem rekomendasi berdasarkan kemiripan konten dan interaksi pengguna.
+- Visualisasi interaktif dan eksplorasi data.
+- Model dan metadata dapat diekspor.
+
+---
+
+## 🛠️ Teknologi yang Digunakan
+
+- **Python**, **Pandas**, **NumPy**, **TensorFlow**
+- **Scikit-learn**, **Matplotlib**, **Seaborn**
+- **TF-IDF**, **Cosine Similarity**, **Collaborative Filtering**
+
+---
+
 ## 🧠 Model Machine Learning
 
 ### ✅ Content-Based Filtering (CBF)
@@ -119,23 +136,6 @@ get_recommendations("Danau Toba Parapat")
 # Contoh CF
 predict_rating_py("user123", "Danau Toba Parapat")
 ```
-
----
-
-## 💡 Fitur Utama
-
-- Rekomendasi personalisasi untuk destinasi wisata.
-- Sistem rekomendasi berdasarkan kemiripan konten dan interaksi pengguna.
-- Visualisasi interaktif dan eksplorasi data.
-- Model dan metadata dapat diekspor.
-
----
-
-## 🛠️ Teknologi yang Digunakan
-
-- **Python**, **Pandas**, **NumPy**, **TensorFlow**
-- **Scikit-learn**, **Matplotlib**, **Seaborn**
-- **TF-IDF**, **Cosine Similarity**, **Collaborative Filtering**
 
 ---
 
