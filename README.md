@@ -52,6 +52,7 @@
 ## 🏗️ Struktur Proyek
 
 ```
+├── dataset/CF.csv
 ├── etl_pipeline/
 │   ├── utils/
 │   │   ├── extract.py
@@ -60,14 +61,10 @@
 │   ├── data/*.csv
 │   ├── main.py
 │   ├── requirements.txt
-│   └── utils/
-├── data/
-│   ├── data_Wisata*.csv
-│   ├── all_data.csv
-│   ├── description.csv
+│   └── transformed.csv
 ├── model/
 │   ├── CBF/
-│   ├── CF/
+│   └── CF/
 ├── notebook/
 │   ├── Capstone_Model_CBF.ipynb
 │   ├── Capstone_Model_CBF.py
@@ -93,8 +90,12 @@ Terdapat di folder `etl_pipeline/`:
 
 - File CSV berdasarkan kategori: wisata alam, budaya, kuliner, belanja, edukasi.
 - Enrichment deskripsi dan gambar.
-- Dataset final: `transformed.csv`.
-
+- Dataset :
+```
+├── dataset/CF.csv - Dataset Collaborative Filtering
+├── etl_pipeline/
+│   └── transformed.csv - Dataset Content Base Filtering
+```
 ---
 
 ## 🧠 Desain Model
