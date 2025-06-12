@@ -52,11 +52,11 @@
 ## 🏗️ Struktur Proyek
 
 ```
-.
 ├── etl_pipeline/
-│   ├── extract.py
-│   ├── load.py
-│   ├── transform.py
+│   ├── utils/
+│   │   ├── extract.py
+│   │   ├── load.py
+│   │   ├── transform.py
 │   ├── main.py
 │   └── utils/
 ├── data/
