@@ -9,166 +9,395 @@ Original file is located at
 # **1. Import Library**
 """
 
-import os
-import json
-
+# Import library
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
 
 """# **2. Load Dataset**"""
 
-df = pd.read_csv('/content/CF.csv')
+df = pd.read_csv('/content/user_preferences.csv')
+tourism_df = pd.read_excel('/content/transformed.xlsx')
 
 """# **3. EDA**"""
 
-print(df['rating'].describe())
-plt.figure(figsize=(6,4))
-sns.histplot(df['rating'], bins=10, kde=True)
-plt.title('Distribution of Ratings')
-plt.xlabel('Rating')
-plt.ylabel('Count')
+# Basic statistics
+print("\n1. Dataset Overview:")
+print(f"Number of unique users: {df['user_id'].nunique()}")
+print(f"Number of unique places: {df['place_id'].nunique()}")
+print(f"Total interactions: {len(df)}")
+
+# Rating distribution
+print("\n2. Rating Distribution:")
+rating_dist = df['rating'].value_counts().sort_index()
+print(rating_dist)
+
+# Liked distribution
+print("\n3. Liked Distribution:")
+liked_dist = df['liked'].value_counts()
+print(liked_dist)
+
+# Correlation between rating and liked
+correlation = df[['rating', 'liked']].corr()
+print(f"\n4. Correlation between Rating and Liked: {correlation.iloc[0,1]:.3f}")
+
+# User activity statistics
+user_stats = df.groupby('user_id').agg({
+    'place_id': 'count',
+    'rating': 'mean'
+}).rename(columns={'place_id': 'visit_count', 'rating': 'avg_rating'})
+
+print(f"\n5. User Activity Statistics:")
+print(f"Average visits per user: {user_stats['visit_count'].mean():.2f}")
+print(f"Min visits per user: {user_stats['visit_count'].min()}")
+print(f"Max visits per user: {user_stats['visit_count'].max()}")
+
+# Place popularity statistics
+place_stats = df.groupby('place_id').agg({
+    'user_id': 'count',
+    'rating': 'mean'
+}).rename(columns={'user_id': 'visitor_count', 'rating': 'avg_rating'})
+
+print(f"\n6. Place Popularity Statistics:")
+print(f"Average visitors per place: {place_stats['visitor_count'].mean():.2f}")
+print(f"Min visitors per place: {place_stats['visitor_count'].min()}")
+print(f"Max visitors per place: {place_stats['visitor_count'].max()}")
+
+# Create visualizations
+fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+
+# Rating distribution
+axes[0,0].bar(rating_dist.index, rating_dist.values, color='skyblue')
+axes[0,0].set_title('Rating Distribution')
+axes[0,0].set_xlabel('Rating')
+axes[0,0].set_ylabel('Count')
+
+# User visit count distribution
+axes[0,1].hist(user_stats['visit_count'], bins=20, color='lightgreen', alpha=0.7)
+axes[0,1].set_title('User Visit Count Distribution')
+axes[0,1].set_xlabel('Number of Visits')
+axes[0,1].set_ylabel('Number of Users')
+
+# Place visitor count distribution
+axes[1,0].hist(place_stats['visitor_count'], bins=20, color='orange', alpha=0.7)
+axes[1,0].set_title('Place Visitor Count Distribution')
+axes[1,0].set_xlabel('Number of Visitors')
+axes[1,0].set_ylabel('Number of Places')
+
+# Rating vs Liked scatter plot
+axes[1,1].scatter(df['rating'], df['liked'], alpha=0.6)
+axes[1,1].set_title('Rating vs Liked')
+axes[1,1].set_xlabel('Rating')
+axes[1,1].set_ylabel('Liked (0/1)')
+
 plt.tight_layout()
 plt.show()
 
-# Interaksi per user/item
-users_count = df['user_id'].value_counts().head(10)
-items_count = df['item_id'].value_counts().head(10)
-print("Top 10 users by interactions:\n", users_count)
-print("Top 10 items by interactions:\n", items_count)
+"""# **4. Preprocessing**"""
 
-"""# **4. Preprocessing: Label Encoding**"""
+# Mengubah user_id menjadi list tanpa nilai yang sama
+user_ids = df['user_id'].unique().tolist()
+print(f'\nJumlah unique users: {len(user_ids)}')
+print('List userID: ', user_ids[:10])  # tampilkan 10 pertama saja
 
-user_encoder = LabelEncoder()
-item_encoder = LabelEncoder()
+# Melakukan encoding user_id
+user_to_user_encoded = {x: i for i, x in enumerate(user_ids)}
+print('Encoded userID (sample): ', dict(list(user_to_user_encoded.items())[:5]))
 
-df['user_idx'] = user_encoder.fit_transform(df['user_id'])
-df['item_idx'] = item_encoder.fit_transform(df['item_id'])
+# Melakukan proses encoding angka ke user_id
+user_encoded_to_user = {i: x for i, x in enumerate(user_ids)}
 
-num_users = df['user_idx'].nunique()
-num_items = df['item_idx'].nunique()
-print(f"🔢 Users: {num_users}, Items: {num_items}")
+# Mengubah place_id menjadi list tanpa nilai yang sama
+place_ids = df['place_id'].unique().tolist()
+print(f'\nJumlah unique places: {len(place_ids)}')
+
+# Melakukan proses encoding place_id
+place_to_place_encoded = {x: i for i, x in enumerate(place_ids)}
+place_encoded_to_place = {i: x for i, x in enumerate(place_ids)}
+
+# Mapping user_id dan place_id ke dataframe
+df['user'] = df['user_id'].map(user_to_user_encoded)
+df['place'] = df['place_id'].map(place_to_place_encoded)
+
+# Mendapatkan jumlah user dan place
+num_users = len(user_to_user_encoded)
+num_places = len(place_encoded_to_place)
+
+# Mengubah rating menjadi nilai float
+df['rating'] = df['rating'].values.astype(np.float32)
+
+# Nilai minimum dan maksimal rating
+min_rating = min(df['rating'])
+max_rating = max(df['rating'])
+
+print(f'\nNumber of Users: {num_users}')
+print(f'Number of Places: {num_places}')
+print(f'Min Rating: {min_rating}')
+print(f'Max Rating: {max_rating}')
 
 """# **5. Data Splitting**"""
 
-train_df, test_df = train_test_split(df, test_size=0.2, random_state=42)
+# Mengacak dataset
+df = df.sample(frac=1, random_state=42)
 
-BATCH_SIZE = 64
+# Membuat variabel x untuk mencocokkan data user dan place menjadi satu value
+x = df[['user', 'place']].values
 
-def df_to_tf_dataset(dataframe):
-    ds = tf.data.Dataset.from_tensor_slices(({
-        'user_idx': dataframe['user_idx'].values,
-        'item_idx': dataframe['item_idx'].values
-    }, dataframe['rating'].values.astype(np.float32)))
-    return ds.shuffle(10000).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+# Membuat variabel y untuk rating yang dinormalisasi (0-1)
+y = df['rating'].apply(lambda x: (x - min_rating) / (max_rating - min_rating)).values
 
-train_ds = df_to_tf_dataset(train_df)
-test_ds = df_to_tf_dataset(test_df)
+# Membagi menjadi 80% data train dan 20% data validasi
+train_indices = int(0.8 * df.shape[0])
+x_train, x_val, y_train, y_val = (
+    x[:train_indices],
+    x[train_indices:],
+    y[:train_indices],
+    y[train_indices:]
+)
+
+print(f'\nTraining data shape: {x_train.shape}')
+print(f'Validation data shape: {x_val.shape}')
 
 """# **6. Model Building**"""
 
-EMBEDDING_SIZE = 32
-L2_REG = 1e-6
+class RecommenderNet(tf.keras.Model):
 
-# Inputs
-user_input = tf.keras.layers.Input(shape=(), name='user_idx', dtype=tf.int32)
-item_input = tf.keras.layers.Input(shape=(), name='item_idx', dtype=tf.int32)
+    def __init__(self, num_users, num_places, embedding_size, **kwargs):
+        super(RecommenderNet, self).__init__(**kwargs)
+        self.num_users = num_users
+        self.num_places = num_places
+        self.embedding_size = embedding_size
 
-# Embeddings + regularizer
-user_emb = tf.keras.layers.Embedding(
-    input_dim=num_users,
-    output_dim=EMBEDDING_SIZE,
-    embeddings_regularizer=tf.keras.regularizers.l2(L2_REG),
-    name='user_emb'
-)(user_input)
+        # Layer embedding user
+        self.user_embedding = layers.Embedding(
+            num_users,
+            embedding_size,
+            embeddings_initializer='he_normal',
+            embeddings_regularizer=keras.regularizers.l2(1e-6)
+        )
 
-item_emb = tf.keras.layers.Embedding(
-    input_dim=num_items,
-    output_dim=EMBEDDING_SIZE,
-    embeddings_regularizer=tf.keras.regularizers.l2(L2_REG),
-    name='item_emb'
-)(item_input)
+        # Layer embedding user bias
+        self.user_bias = layers.Embedding(num_users, 1)
 
-# Bias terms
-user_bias = tf.keras.layers.Embedding(num_users, 1, name='user_bias')(user_input)
-item_bias = tf.keras.layers.Embedding(num_items, 1, name='item_bias')(item_input)
+        # Layer embedding place
+        self.place_embedding = layers.Embedding(
+            num_places,
+            embedding_size,
+            embeddings_initializer='he_normal',
+            embeddings_regularizer=keras.regularizers.l2(1e-6)
+        )
 
-# Flatten all
-user_vec  = tf.keras.layers.Flatten()(user_emb)
-item_vec  = tf.keras.layers.Flatten()(item_emb)
-user_b    = tf.keras.layers.Flatten()(user_bias)
-item_b    = tf.keras.layers.Flatten()(item_bias)
+        # Layer embedding place bias
+        self.place_bias = layers.Embedding(num_places, 1)
 
-# Dot + bias → output
-dot = tf.keras.layers.Dot(axes=1)([user_vec, item_vec])
-x   = tf.keras.layers.Add()([dot, user_b, item_b])
-output = tf.keras.layers.Activation('linear')(x)
+    def call(self, inputs):
+        user_vector = self.user_embedding(inputs[:, 0])  # memanggil layer embedding user
+        user_bias = self.user_bias(inputs[:, 0])         # memanggil layer bias user
+        place_vector = self.place_embedding(inputs[:, 1]) # memanggil layer embedding place
+        place_bias = self.place_bias(inputs[:, 1])       # memanggil layer bias place
 
-model = tf.keras.Model(inputs=[user_input, item_input], outputs=output)
+        # Dot product antara user dan place vector
+        dot_user_place = tf.tensordot(user_vector, place_vector, 2)
 
+        # Tambahkan bias
+        x = dot_user_place + user_bias + place_bias
+
+        # Aktivasi sigmoid
+        return tf.nn.sigmoid(x)
+
+model = RecommenderNet(num_users, num_places, 50)  # embedding size = 50
+
+# Compile model
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-    loss='mse',
-    metrics=[tf.keras.metrics.RootMeanSquaredError(name='rmse')]
+    loss=tf.keras.losses.BinaryCrossentropy(),
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    metrics=[tf.keras.metrics.RootMeanSquaredError()]
 )
-
-model.summary()
 
 """# **7. Model training**"""
 
-early_stop = tf.keras.callbacks.EarlyStopping(
+# Callbacks sama seperti sebelumnya
+early_stopping = keras.callbacks.EarlyStopping(
     monitor='val_loss',
-    patience=3,
+    patience=10,
     restore_best_weights=True
 )
 
+reduce_lr = keras.callbacks.ReduceLROnPlateau(
+    monitor='val_loss',
+    factor=0.5,
+    patience=5,
+    min_lr=1e-6
+)
+
 history = model.fit(
-    train_ds,
-    validation_data=test_ds,
-    epochs=50,
-    callbacks=[early_stop],
+    x=x_train,
+    y=y_train,
+    batch_size=8,
+    epochs=50,  # dikurangi untuk contoh ini
+    validation_data=(x_val, y_val),
+    callbacks=[early_stopping, reduce_lr],
     verbose=1
 )
 
 """# **8. Evaluasi**"""
 
-plt.figure(figsize=(6,4))
-plt.plot(history.history['rmse'], label='train RMSE')
-plt.plot(history.history['val_rmse'], label='val RMSE')
+plt.figure(figsize=(12, 4))
+
+# Plot loss
+plt.subplot(1, 2, 1)
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model Loss')
+plt.ylabel('Loss')
 plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper right')
+
+# Plot RMSE
+plt.subplot(1, 2, 2)
+plt.plot(history.history['root_mean_squared_error'])
+plt.plot(history.history['val_root_mean_squared_error'])
+plt.title('Model RMSE')
 plt.ylabel('RMSE')
-plt.legend()
+plt.xlabel('Epoch')
+plt.legend(['Train', 'Validation'], loc='upper right')
+
 plt.tight_layout()
 plt.show()
 
-loss, rmse = model.evaluate(test_ds)
-print(f"📉 Test RMSE: {rmse:.4f}")
+"""# **9. Inference**"""
 
-"""# **9. Simpan Model**"""
+def get_tourism_recommendations(user_id, top_k=10):
+    """
+    Fungsi untuk mendapatkan rekomendasi tempat wisata untuk user tertentu
+    """
+
+    # Ambil places yang sudah dikunjungi user
+    places_visited_by_user = df[df['user_id'] == user_id]
+
+    # Ambil places yang belum dikunjungi
+    places_not_visited = df[~df['place_id'].isin(places_visited_by_user['place_id'].values)]['place_id'].unique()
+
+    # Filter places yang ada di encoding
+    places_not_visited = list(
+        set(places_not_visited).intersection(set(place_to_place_encoded.keys()))
+    )
+
+    if len(places_not_visited) == 0:
+        print(f"User {user_id} sudah mengunjungi semua tempat wisata dalam dataset")
+        return
+
+    # Encode places yang belum dikunjungi
+    places_not_visited_encoded = [[place_to_place_encoded.get(x)] for x in places_not_visited]
+
+    # Encode user
+    user_encoder = user_to_user_encoded.get(user_id)
+    if user_encoder is None:
+        print(f"User {user_id} tidak ditemukan dalam dataset")
+        return
+
+    # Buat array untuk prediksi
+    user_place_array = np.hstack(
+        ([[user_encoder]] * len(places_not_visited_encoded), places_not_visited_encoded)
+    )
+
+    # Prediksi rating
+    ratings = model.predict(user_place_array).flatten()
+
+    # Ambil top-k rekomendasi
+    top_ratings_indices = ratings.argsort()[-top_k:][::-1]
+    recommended_place_ids = [
+        place_encoded_to_place.get(places_not_visited_encoded[x][0]) for x in top_ratings_indices
+    ]
+
+    # Tampilkan hasil
+    print(f'Menampilkan rekomendasi untuk User: {user_id}')
+    print('=' * 50)
+
+    # Tampilkan tempat yang sudah dikunjungi dengan rating tinggi
+    print('Tempat wisata dengan rating tinggi dari user:')
+    print('-' * 40)
+
+    top_places_user = (
+        places_visited_by_user.sort_values(by='rating', ascending=False)
+        .head(5)
+        .place_id.values
+    )
+
+    for place_id in top_places_user:
+        # Cari info tempat wisata (jika ada di tourism_df)
+        place_info = tourism_df[tourism_df['id'] == place_id]
+        if not place_info.empty:
+            place_name = place_info.iloc[0]['nama_tempat']
+            place_category = place_info.iloc[0]['kategori']
+            user_rating = places_visited_by_user[places_visited_by_user['place_id'] == place_id]['rating'].iloc[0]
+            print(f"- {place_name} ({place_category}) - Rating user: {user_rating}")
+        else:
+            user_rating = places_visited_by_user[places_visited_by_user['place_id'] == place_id]['rating'].iloc[0]
+            print(f"- Place ID {place_id} - Rating user: {user_rating}")
+
+    print('-' * 40)
+    print(f'Top {top_k} Rekomendasi Tempat Wisata:')
+    print('-' * 40)
+
+    for i, place_id in enumerate(recommended_place_ids, 1):
+        # Cari info tempat wisata (jika ada di tourism_df)
+        place_info = tourism_df[tourism_df['id'] == place_id]
+        if not place_info.empty:
+            place_name = place_info.iloc[0]['nama_tempat']
+            place_category = place_info.iloc[0]['kategori']
+            place_rating = place_info.iloc[0]['rating']
+            predicted_rating = ratings[top_ratings_indices[i-1]]
+            print(f"{i}. {place_name} ({place_category})")
+            print(f"   Rating rata-rata: {place_rating}, Prediksi rating user: {predicted_rating:.3f}")
+        else:
+            predicted_rating = ratings[top_ratings_indices[i-1]]
+            print(f"{i}. Place ID {place_id} - Prediksi rating: {predicted_rating:.3f}")
+
+# ========== CONTOH PENGGUNAAN ==========
+
+# Ambil sample user untuk demo
+sample_user = df['user_id'].sample(1).iloc[0]
+print(f"\n=== DEMO REKOMENDASI ===")
+get_tourism_recommendations(sample_user, top_k=5)
+
+# Atau test dengan user tertentu yang ada di dataset
+print(f"\n=== REKOMENDASI UNTUK USER 39 ===")
+get_tourism_recommendations(39, top_k=5)
+
+"""# **10. Saved Model**"""
+
+import os
+import json
 
 os.makedirs('model/cf', exist_ok=True)
 model.export('model/cf', include_optimizer=False)
 print("✅ SavedModel ready at model/cf")
 
 !pip install tensorflowjs
+
 !tensorflowjs_converter --input_format=tf_saved_model model/cf model/tfjs_model/
 print("✅ TFJS model ready at model/tfjs_model/")
 
-os.makedirs('model', exist_ok=True)
-user_map = {k: int(v) for k, v in zip(user_encoder.classes_, user_encoder.transform(user_encoder.classes_))}
-item_map = {k: int(v) for k, v in zip(item_encoder.classes_, item_encoder.transform(item_encoder.classes_))}
-with open('model/user_encoder.json', 'w') as f:
-    json.dump(user_map, f)
-with open('model/item_encoder.json', 'w') as f:
-    json.dump(item_map, f)
-print("✅ Encoders saved to model/*.json")
-
 !pip freeze > model/requirements.txt
 print("✅ Saved requirements.txt")
+
+encoders = {
+    "user_to_user_encoded": user_to_user_encoded,
+    "place_to_place_encoded": place_to_place_encoded,
+    "user_encoded_to_user": user_encoded_to_user,
+    "place_encoded_to_place": place_encoded_to_place
+}
+
+# Tulis ke JSON
+with open('model/encoders.json', 'w') as f:
+    json.dump(encoders, f, indent=2)
+
+print("✅ Encoders saved to model/encoders.json")
 
 import shutil
 
@@ -177,30 +406,3 @@ shutil.make_archive('model_cf', 'zip', 'model')
 
 from google.colab import files
 files.download('model_cf.zip')
-
-"""# **10. Inference**"""
-
-def predict_rating_py(user_id, item_id):
-    """
-    Prediksi rating single user-item menggunakan SavedModel + mapping JSON.
-    """
-    # Cek mapping
-    if user_id not in user_map:
-        raise ValueError(f"User '{user_id}' tidak dikenali.")
-    if item_id not in item_map:
-        raise ValueError(f"Item '{item_id}' tidak dikenali.")
-
-    # Ambil index
-    u_idx = np.array([user_map[user_id]], dtype=np.int32)
-    i_idx = np.array([item_map[item_id]], dtype=np.int32)
-
-    # Predict
-    pred = model.predict({'user_idx': u_idx, 'item_idx': i_idx}, verbose=0)
-    return float(pred[0])
-
-# Contoh pemakaian
-if __name__ == '__main__':
-    test_user = df['user_id'].iloc[0]
-    test_item = df['item_id'].iloc[0]
-    rating = predict_rating_py(test_user, test_item)
-    print(f"🎯 Predicted rating for '{test_user}' on '{test_item}': {rating:.2f}")
