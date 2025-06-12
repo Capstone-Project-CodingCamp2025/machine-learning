@@ -68,7 +68,9 @@
 │   ├── CF/
 ├── notebook/
 │   ├── Capstone_Model_CBF.ipynb
+│   ├── Capstone_Model_CBF.py
 │   ├── Capstone_Model_CF.ipynb
+│   ├── Capstone_Model_CF.py
 ├── requirements.txt
 └── README.md
 ```
