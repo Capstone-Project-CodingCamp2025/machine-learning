@@ -75,6 +75,40 @@ Terdapat di folder `etl_pipeline/`:
 
 ---
 
+## 🧠 Desain Model
+
+### 📌 Content-Based Filtering (CBF)
+- **Input**: `nama_tempat`, `deskripsi`, `kategori` → dikombinasikan jadi satu fitur teks.
+- **Preprocessing**: 
+  - Text cleaning
+  - TF-IDF Vectorization
+  - Cosine Similarity computation
+- **Output**:
+  - Matrix kemiripan antar tempat wisata
+  - JSON metadata & parameter model
+- **Model Inference**:
+  ```python
+  from capstone_model_cbf import get_recommendations
+  recs = get_recommendations("Danau Toba Parapat", top_n=5)
+  print(recs)
+  ```
+
+### 📌 Collaborative Filtering (CF)
+- **Input**: user_id, item_id, rating
+- **Preprocessing**: Label encoding → matrix factorization (Neural Embedding)
+- **Model**: TensorFlow Embedding Layer + Dot Product + Bias
+- **Output**:
+  - Model TensorFlow SavedModel + TFJS export
+  - user_encoder.json & item_encoder.json
+- **Model Inference**:
+  ```python
+  from capstone_model_cf import predict_rating_py
+  rating = predict_rating_py("user123", "place456")
+  print(rating)
+  ```
+
+---
+
 ## 🚀 Contoh Inference
 
 ```python
@@ -101,7 +135,6 @@ predict_rating_py("user123", "Danau Toba Parapat")
 - **Python**, **Pandas**, **NumPy**, **TensorFlow**
 - **Scikit-learn**, **Matplotlib**, **Seaborn**
 - **TF-IDF**, **Cosine Similarity**, **Collaborative Filtering**
-- **Vercel**, **ReactJS**, **TailwindCSS** (frontend tidak dibahas di sini)
 
 ---
 
@@ -113,17 +146,14 @@ pip install -r requirements.txt
 
 ---
 
-## 📍 Anggota Tim
+## 📍 Anggota Tim Machine Learning
 
-- Sean Andrianto (ML)
-- Bimo Birra (ML)
-- Ferri Krisdiantoro (ML)
-- Dzakkiyansyah (FE/BE)
-- Sanu Ahadi W (FE/BE)
-- Diah Putri Kartikasari (FE/BE)
+- Sean Andrianto | Leader
+- Ferri Krisdiantoro | Model Building dan Model Deployment
+- Bimo Birra | Data Scarping dan Data Cleaning
 
 ---
 
 ## 📄 Lisensi
 
-Lisensi MIT.
+Proyek ini dibuat untuk kebutuhan Capstone **Coding Camp 2025**. Lisensi: MIT.  
