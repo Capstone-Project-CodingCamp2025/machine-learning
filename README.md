@@ -64,12 +64,19 @@
 │   └── transformed.csv
 ├── model/
 │   ├── CBF/
+│   │   ├── cosine_similarity_matrix.npy
+│   │   ├── tourism_recommendation_model.json
+│   │   └── tfidf_parameters.json
 │   └── CF/
+│   │   ├── cf/ - SavedModel
+│   │   ├── tfjs_model/ - TFJS
+│   │   ├── user_encoder.json
+│   └── └── item_encoder.json
 ├── notebook/
 │   ├── Capstone_Model_CBF.ipynb
 │   ├── Capstone_Model_CBF.py
 │   ├── Capstone_Model_CF.ipynb
-│   ├── Capstone_Model_CF.py
+│   └── Capstone_Model_CF.py
 ├── requirements.txt
 └── README.md
 ```
@@ -94,7 +101,7 @@ Terdapat di folder `etl_pipeline/`:
 ```
 ├── dataset/CF.csv - Dataset Collaborative Filtering
 ├── etl_pipeline/
-│   └── transformed.csv - Dataset Content Base Filtering
+└── └── transformed.csv - Dataset Content Base Filtering
 ```
 ---
 
