@@ -56,8 +56,10 @@
 │   ├── utils/
 │   │   ├── extract.py
 │   │   ├── load.py
-│   │   ├── transform.py
+│   │   └── transform.py
+│   ├── data/*.csv
 │   ├── main.py
+│   ├── requirements.txt
 │   └── utils/
 ├── data/
 │   ├── data_Wisata*.csv
