@@ -25,7 +25,8 @@ SIRESITA adalah sistem rekomendasi wisata berbasis machine learning yang diranca
 - Dilatih menggunakan data rating.
 - Disimpan dalam format SavedModel TensorFlow dan dikonversi ke TF.js.
 - Output:
-  - `tfjs_model/`
+  - `cf/` # Model dengan format SavedModel
+  - `tfjs_model/` # Model dengan format tfjs
   - `user_encoder.json`
   - `item_encoder.json`
 
