@@ -44,10 +44,9 @@
 - Dilatih menggunakan data rating.
 - Disimpan dalam format SavedModel TensorFlow dan dikonversi ke TF.js.
 - Output:
-  - `cf/` - Model dengan format SavedModel
-  - `tfjs_model/` - Model dengan format tfjs
-  - `user_encoder.json`
-  - `item_encoder.json`
+  - `cf/` # Model dengan format SavedModel
+  - `tfjs_model/` # Model dengan format tfjs
+  - `encoders.json`
 
 ---
 
@@ -68,12 +67,13 @@
 │   ├── CBF/
 │   │   ├── cosine_similarity_matrix.npy
 │   │   ├── tourism_recommendation_model.json
-│   │   └── tfidf_parameters.json
+│   │   ├── tfidf_parameters.json
+│   │   └── requirements.txt
 │   └── CF/
 │   │   ├── cf/ - SavedModel
 │   │   ├── tfjs_model/ - TFJS
-│   │   ├── user_encoder.json
-│   └── └── item_encoder.json
+│   │   ├── tfidf_parameters.json
+│   └── └── encoders.json
 ├── notebook/
 │   ├── Capstone_Model_CBF.ipynb
 │   ├── Capstone_Model_CBF.py
