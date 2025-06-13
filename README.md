@@ -72,7 +72,7 @@
 │   └── CF/
 │   │   ├── cf/ - SavedModel
 │   │   ├── tfjs_model/ - TFJS
-│   │   ├── tfidf_parameters.json
+│   │   ├── requirements.txt
 │   └── └── encoders.json
 ├── notebook/
 │   ├── Capstone_Model_CBF.ipynb
